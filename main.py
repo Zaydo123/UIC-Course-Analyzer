@@ -47,7 +47,10 @@ class Search:
             for j in range(len(search_results[i])):
                 cur_year = self.CSVS[i].getYear()
                 cur_sem = self.CSVS[i].getSemester()
-                course = Course(str(search_results[i][0]["CRS TITLE"].values[0]),
+
+
+                course = Course(
+                                str(search_results[i][0]["CRS TITLE"].values[0]),
                                 str(search_results[i][0]["DEPT CD"].values[0]),
                                 str(search_results[i][0]["DEPT NAME"].values[0]),
                                 str(search_results[i][0]["CRS SUBJ CD"].values[0]),
@@ -61,8 +64,10 @@ class Search:
                                 int(search_results[i][0]["B"].values[0]),
                                 int(search_results[i][0]["C"].values[0]),
                                 int(search_results[i][0]["D"].values[0]),
-                                int(search_results[i][0]["F"].values[0]))
+                                int(search_results[i][0]["F"].values[0])
+                            )
                 courses.append(course)
+
         
         return courses
 
@@ -73,19 +78,30 @@ class Search:
             df = self.CSVS[i].toDataFrame()
             df = df.loc[(df['CRS SUBJ CD'] == crs) & (df['CRS NBR'] == int(crs_nbr))]
             search_results.append((df,i))
+        if len(search_results) == 0:
+            print("No results found.")
 
         return self.convert_to_courses(search_results)
 
     def search_by_professor(self, professor):
         search_results = []
         print(f"Searching for {professor}...")
-        for i in range(len(self.CSVS)): #iterate through all csv files
-                #search by column CRS SUBJ CD && CRS NBR
-                df = self.CSVS[i].toDataFrame()
-                df = df.loc[(df['Primary Instructor'] == professor)]
-                search_results.append((df,i))                
-
+        for i in range(len(self.CSVS)): # iterate through all csv files
+            df = self.CSVS[i].toDataFrame()
+            df = df.loc[(df['Primary Instructor'] == professor)]
+            
+            # Check if the DataFrame is empty
+            if df.empty:
+                print(f"No results found for {professor} in {self.CSVS[i].getSemester()} {self.CSVS[i].getYear()}")
+            else:
+                search_results.append((df, i))
+                print(df["Primary Instructor"].values[0] + " " + df["CRS TITLE"].values[0])
+        
+        if len(search_results) == 0:
+            print("No results found.")
+        
         return self.convert_to_courses(search_results)
+
     
     def search_by_dept(self, dept):
         search_results = []
@@ -95,6 +111,8 @@ class Search:
                 df = self.CSVS[i].toDataFrame()
                 df = df.loc[(df['DEPT CD'] == dept)]
                 search_results.append((df,i))
+        if len(search_results) == 0:
+            return "No results found."
 
         return self.convert_to_courses(search_results)
 
@@ -115,7 +133,7 @@ class Course:
         # Session info
         self.SESSION_YEAR = session_year
         self.SESSION_SEMESTER = session_semester
-        self.PROFFESOR = professor
+        self.PROFESSOR = professor
         self.REGISTRANTS = registrants
         self.WITHDRAWALS = withdrawals
 
@@ -133,7 +151,7 @@ class Course:
     
     @staticmethod
     def is_same_professor(c1, c2):
-        return c1.PROFFESOR == c2.PROFFESOR
+        return c1.PROFESSOR == c2.PROFESSOR
 
     def calculate_average_letter_grade(self):
         decimal = (self.GRADES_A * 4 + self.GRADES_B * 3 + self.GRADES_C * 2 + self.GRADES_D * 1) / (self.REGISTRANTS - self.WITHDRAWALS)
@@ -179,7 +197,7 @@ class Course:
 
         plt.style.use("ggplot")
         plt.size = (10, 10)
-        plt.title(f"{self.CRS_SUBJ_CD} {self.CRS_NBR} {self.SESSION_SEMESTER} {self.SESSION_YEAR} Grade Distribution - {self.PROFFESOR}")
+        plt.title(f"{self.CRS_SUBJ_CD} {self.CRS_NBR} {self.SESSION_SEMESTER} {self.SESSION_YEAR} Grade Distribution - {self.PROFESSOR}")
         plt.xlabel("Grade")
         plt.ylabel("Number of Students")
         plt.bar(x, [self.GRADES_A, self.GRADES_B, self.GRADES_C, self.GRADES_D, self.GRADES_F])
@@ -198,9 +216,13 @@ def main():
     parser = Parser(CSV_FILENAMES)
     parser.mount_all_data()
     search = Search(parser)
+    courses = []
+
     search_results = search.search_by_crs_crs_nbr(input("Enter Course Subject Code: "), input("Enter Course Number: "))
+    #search_results = search.search_by_professor("Steenbergen, John")
+    
     for course in search_results:
-        print(course.PROFFESOR + " " + course.CRS_TITLE)
+        print(course.PROFESSOR + " " + course.SESSION_SEMESTER + " " + str(course.SESSION_YEAR))
         print("Average Letter Grade: ")
         print(course.calculate_average_letter_grade())
         print("Pass Rate: ")
@@ -210,10 +232,13 @@ def main():
         print("Withdrawal Rate: ")
         print(course.calculate_withdrawal_rate())
         print()
-        course.generate_grade_distribution_image(f"{course.CRS_SUBJ_CD}_{course.CRS_NBR}/{course.CRS_SUBJ_CD}_{course.CRS_NBR}_{course.SESSION_SEMESTER}_{course.SESSION_YEAR}_{course.PROFFESOR}.png")
+        courses.append(course)
+        course.generate_grade_distribution_image(f"{course.CRS_SUBJ_CD}_{course.CRS_NBR}/{course.CRS_SUBJ_CD}_{course.CRS_NBR}_{course.SESSION_SEMESTER}_{course.SESSION_YEAR}_{course.PROFESSOR}.png")
         
-
-
+    courses.sort(key=lambda x: x.calculate_average_letter_grade())
+    print("Top 10 Courses: ")
+    for i in range(10):
+        print(courses[i].PROFESSOR + " " + courses[i].SESSION_SEMESTER + " " + str(courses[i].SESSION_YEAR) + " " + courses[i].calculate_average_letter_grade() + " " + str(courses[i].calculate_pass_rate()) + " " + str(courses[i].CRS_TITLE))
 
 if __name__ == "__main__":
     main()
