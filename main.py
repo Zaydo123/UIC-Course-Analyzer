@@ -3,7 +3,7 @@ import pandas as pd
 import os
 
 
-CSV_PATH = "REPLACE ME"
+CSV_PATH = "/Users/zaydalzein/Downloads/UIC"
 CSV_FILENAMES = os.listdir(CSV_PATH)
 
 class CSV: 
@@ -43,30 +43,33 @@ class Search:
     def convert_to_courses(self,search_results):
         courses = []
         #collect all courses into one array of course objects
+
+        print(f"Search Results: {len(search_results)} ---------------------------------")
+        
+
         for i in range(len(search_results)):
-            for j in range(len(search_results[i])):
-                cur_year = self.CSVS[i].getYear()
-                cur_sem = self.CSVS[i].getSemester()
 
-
-                course = Course(
-                                str(search_results[i][0]["CRS TITLE"].values[0]),
-                                str(search_results[i][0]["DEPT CD"].values[0]),
-                                str(search_results[i][0]["DEPT NAME"].values[0]),
-                                str(search_results[i][0]["CRS SUBJ CD"].values[0]),
-                                int(search_results[i][0]["CRS NBR"].values[0]),
-                                int(self.CSVS[i].getYear()),
-                                str(self.CSVS[i].getSemester()),
-                                str(search_results[i][0]["Primary Instructor"].values[0]),
-                                int(search_results[i][0]["Grade Regs"].values[0]),
-                                int(search_results[i][0]["W"].values[0]),
-                                int(search_results[i][0]["A"].values[0]),
-                                int(search_results[i][0]["B"].values[0]),
-                                int(search_results[i][0]["C"].values[0]),
-                                int(search_results[i][0]["D"].values[0]),
-                                int(search_results[i][0]["F"].values[0])
-                            )
-                courses.append(course)
+            cur_year = self.CSVS[i].getYear()
+            cur_sem = self.CSVS[i].getSemester()
+            
+            course = Course(
+                str(search_results[i][0]["CRS TITLE"].values[0]),
+                str(search_results[i][0]["DEPT CD"].values[0]),
+                str(search_results[i][0]["DEPT NAME"].values[0]),
+                str(search_results[i][0]["CRS SUBJ CD"].values[0]),
+                int(search_results[i][0]["CRS NBR"].values[0]),
+                cur_year,
+                cur_sem,
+                str(search_results[i][0]["Primary Instructor"].values[0]),
+                int(search_results[i][0]["Grade Regs"].values[0]),
+                int(search_results[i][0]["W"].values[0]),
+                int(search_results[i][0]["A"].values[0]),
+                int(search_results[i][0]["B"].values[0]),
+                int(search_results[i][0]["C"].values[0]),
+                int(search_results[i][0]["D"].values[0]),
+                int(search_results[i][0]["F"].values[0])
+            )
+            courses.append(course)
 
         
         return courses
@@ -77,10 +80,9 @@ class Search:
         for i in range(len(self.CSVS)):
             df = self.CSVS[i].toDataFrame()
             df = df.loc[(df['CRS SUBJ CD'] == crs) & (df['CRS NBR'] == int(crs_nbr))]
-            search_results.append((df,i))
-        if len(search_results) == 0:
-            print("No results found.")
-
+            if not df.empty:
+                search_results.append((df,i))
+                
         return self.convert_to_courses(search_results)
 
     def search_by_professor(self, professor):
@@ -152,7 +154,10 @@ class Course:
     @staticmethod
     def is_same_professor(c1, c2):
         return c1.PROFESSOR == c2.PROFESSOR
-
+    
+    def calculate_average_gpa(self):
+        return (self.GRADES_A * 4 + self.GRADES_B * 3 + self.GRADES_C * 2 + self.GRADES_D * 1) / (self.REGISTRANTS - self.WITHDRAWALS)
+    
     def calculate_average_letter_grade(self):
         decimal = (self.GRADES_A * 4 + self.GRADES_B * 3 + self.GRADES_C * 2 + self.GRADES_D * 1) / (self.REGISTRANTS - self.WITHDRAWALS)
         # caclulate + and - grades and assign a letter grade
@@ -184,7 +189,7 @@ class Course:
             return "F"
 
     def calculate_pass_rate(self):
-        return (self.GRADES_A + self.GRADES_B + self.GRADES_C + self.GRADES_D) / (self.REGISTRANTS - self.WITHDRAWALS)
+        return (self.GRADES_A + self.GRADES_B + self.GRADES_C) / (self.REGISTRANTS - self.WITHDRAWALS)
     
     def calculate_fail_rate(self):
         return self.GRADES_F / (self.REGISTRANTS - self.WITHDRAWALS)
@@ -193,14 +198,14 @@ class Course:
         return self.WITHDRAWALS / self.REGISTRANTS
 
     def generate_grade_distribution_image(self, output_path):
-        x = ["A", "B", "C", "D", "F"]
+        x = ["A", "B", "C", "D", "F", "W"]
 
         plt.style.use("ggplot")
         plt.size = (10, 10)
         plt.title(f"{self.CRS_SUBJ_CD} {self.CRS_NBR} {self.SESSION_SEMESTER} {self.SESSION_YEAR} Grade Distribution - {self.PROFESSOR}")
         plt.xlabel("Grade")
         plt.ylabel("Number of Students")
-        plt.bar(x, [self.GRADES_A, self.GRADES_B, self.GRADES_C, self.GRADES_D, self.GRADES_F])
+        plt.bar(x, [self.GRADES_A, self.GRADES_B, self.GRADES_C, self.GRADES_D, self.GRADES_F, self.WITHDRAWALS])
 
         if not os.path.exists(os.path.dirname(output_path)):
             os.makedirs(os.path.dirname(output_path))
@@ -219,7 +224,7 @@ def main():
     courses = []
 
     search_results = search.search_by_crs_crs_nbr(input("Enter Course Subject Code: "), input("Enter Course Number: "))
-    #search_results = search.search_by_professor("Steenbergen, John")
+    #search_results = search.search_by_professor("Devi, Shavila")
     
     for course in search_results:
         print(course.PROFESSOR + " " + course.SESSION_SEMESTER + " " + str(course.SESSION_YEAR))
@@ -234,11 +239,20 @@ def main():
         print()
         courses.append(course)
         course.generate_grade_distribution_image(f"{course.CRS_SUBJ_CD}_{course.CRS_NBR}/{course.CRS_SUBJ_CD}_{course.CRS_NBR}_{course.SESSION_SEMESTER}_{course.SESSION_YEAR}_{course.PROFESSOR}.png")
-        
-    courses.sort(key=lambda x: x.calculate_average_letter_grade())
-    print("Top 10 Courses: ")
-    for i in range(10):
-        print(courses[i].PROFESSOR + " " + courses[i].SESSION_SEMESTER + " " + str(courses[i].SESSION_YEAR) + " " + courses[i].calculate_average_letter_grade() + " " + str(courses[i].calculate_pass_rate()) + " " + str(courses[i].CRS_TITLE))
+    
+    courses.sort(key=lambda x: x.calculate_average_gpa(), reverse=True)
+    if len(courses) == 0:
+        print("No results found.")
+    
+    elif len(courses) < 10:
+        print("Top Courses: ")
+        for i in range(len(courses)):
+            print(courses[i].PROFESSOR + " " + courses[i].SESSION_SEMESTER + " " + str(courses[i].SESSION_YEAR) + " " + courses[i].calculate_average_letter_grade() + " " + str(courses[i].calculate_pass_rate()) + " " + str(courses[i].CRS_TITLE))
+    else:
+        print("Top 10 Courses: ")
+        for i in range(10):
+            print(courses[i].PROFESSOR + " " + courses[i].SESSION_SEMESTER + " " + str(courses[i].SESSION_YEAR) + " " + courses[i].calculate_average_letter_grade() + " " + str(courses[i].calculate_pass_rate()) + " " + str(courses[i].CRS_TITLE))
+    
 
 if __name__ == "__main__":
     main()
